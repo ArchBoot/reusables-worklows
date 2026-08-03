@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  workflow_call:
+    inputs:
+      run_sonar:
+        description: Whether to run SonarQube analysis
+        type: boolean
+        default: false
+      sonar_project_key:
+        description: SonarQube project key
+        type: string
+        required: false
+      sonar_project_name:
+        description: SonarQube project name
+        type: string
+        required: false
+    secrets:
+      sonar_host_url:
+        description: SonarQube host URL
+        required: false
+      sonar_token:
+        description: SonarQube authentication token
+        required: false
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Detect tech stack
+        id: detect_stack
+        uses: ArchBoot/reusables-actions/.github/actions/detect-stack@feature/JAGT-actions
+
+      - name: Setup environment
+        uses: ArchBoot/reusables-actions/.github/actions/setup-environment@feature/JAGT-actions
+        with:
+          stack: ${{ steps.detect_stack.outputs.stack }}
+          stack_version: ${{ steps.detect_stack.outputs.stack_version }}
+
+      - name: Build
+        uses: ArchBoot/reusables-actions/.github/actions/build@feature/JAGT-actions
+        with:
+          stack: ${{ steps.detect_stack.outputs.stack }}
+
+      - name: Test
+        uses: ArchBoot/reusables-actions/.github/actions/test@feature/JAGT-actions
+        with:
+          stack: ${{ steps.detect_stack.outputs.stack }}
+
+      - name: SonarQube Scan
+        if: ${{ inputs.run_sonar == true }}
+        uses: ArchBoot/reusables-actions/.github/actions/sonar-create-project@feature/JAGT-actions
+        with:
+          sonar_host_url: ${{ secrets.sonar_host_url }}
+          sonar_token: ${{ secrets.sonar_token }}
+          project_key: ${{ inputs.sonar_project_key }}
+          project_name: ${{ inputs.sonar_project_name }}
+
+      - uses: ArchBoot/reusables-actions/.github/actions/sonarqube-scan@feature/JAGT-actions
+        with:
+          stack: ${{ steps.detect_stack.outputs.stack }}
+          sonar_host_url: ${{ secrets.sonar_host_url }}
+          sonar_token: ${{ secrets.sonar_token }}
+          project_key: ${{ inputs.sonar_project_key }}
+          project_name: ${{ inputs.sonar_project_name }}
