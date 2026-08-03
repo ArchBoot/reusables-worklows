@@ -1,0 +1,106 @@
+name: Create Release
+
+on:
+  workflow_call:
+    inputs:
+      develop_branch:
+        description: 'The name of the develop branch to create the release from'
+        type: string
+        required: false
+        default: 'develop'
+      next_bump_type:
+        description: 'The type of version bump for the next development version (major, minor, patch)'
+        type: string
+        required: false
+        default: 'minor'
+      git_user_name:
+        description: 'The name of the Git user for the release commit'
+        type: string
+        required: false
+        default: 'github-actions[bot]'
+      git_user_email:
+        description: 'The email of the Git user for the release commit'
+        type: string
+        required: false
+        default: 'github-actions[bot]@users.noreply.github.com'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout develop
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.develop_branch }}
+          fetch-depth: 0
+
+      - name: Configure Git
+        uses: ArchBoot/reusables-actions/.github/actions/setup-git@feature/JAGT-actions
+        with:
+          git_user_name: ${{ inputs.git_user_name }}
+          git_user_email: ${{ inputs.git_user_email }}
+
+      - name: Detect tech stack
+        id: detect_stack
+        uses: ArchBoot/reusables-actions/.github/actions/detect-stack@feature/JAGT-actions
+
+      - name: Setup environment
+        uses: ArchBoot/reusables-actions/.github/actions/setup-environment@feature/JAGT-actions
+        with:
+          stack: ${{ steps.detect_stack.outputs.stack }}
+          stack_version: ${{ steps.detect_stack.outputs.stack_version }}
+
+      - name: Get current version
+        id: get_version
+        uses: ArchBoot/reusables-actions/.github/actions/get-version@feature/JAGT-actions
+        with:
+          stack: ${{ steps.detect_stack.outputs.stack }}
+
+      - name: Create Release
+        id: release_branch
+        uses: ArchBoot/reusables-actions/.github/actions/create-branch@feature/JAGT-actions
+        with:
+          base_branch: ${{ inputs.develop_branch }}
+          new_branch: release/${{ steps.get_version.outputs.major }}.${{ steps.get_version.outputs.minor }}
+          push: 'false'
+
+      - uses: ArchBoot/reusables-actions/.github/actions/set-version@feature/JAGT-actions
+        with:
+          stack: ${{ steps.detect_stack.outputs.stack }}
+          version: ${{ steps.get_version.outputs.base_version }}
+          commit: 'true'
+          commit_message: 'chore: release ${{ steps.get_version.outputs.base_version }} [skip ci]'
+
+      - shell: bash
+        run: |
+          git push origin release/${{ steps.get_version.outputs.major }}.${{ steps.get_version.outputs.minor }}
+
+      - uses: ArchBoot/reusables-actions/.github/actions/create-git-tag@feature/JAGT-actions
+        with:
+          tag: v${{ steps.get_version.outputs.base_version }}
+          message: 'Release ${{ steps.get_version.outputs.base_version }}'
+
+      - name: Bump develop version
+        uses: ArchBoot/reusables-actions/.github/actions/bump-version@feature/JAGT-actions
+        with:
+          current_version: ${{ steps.get_version.outputs.base_version }}
+          bump_type: ${{ inputs.next_bump_type }}
+          snapshot: 'true'
+
+      - shell: bash
+        run:
+          git checkout ${{ inputs.develop_branch }}
+
+      - uses: ArchBoot/reusables-actions/.github/actions/set-version@feature/JAGT-actions
+        with:
+          stack: ${{ steps.detect_stack.outputs.stack }}
+          version: ${{ steps.bump_version.outputs.next_version }}
+          commit: 'true'
+          commit_message: 'chore: bump version to ${{ steps.bump_version.outputs.next_version }} [skip ci]'
+
+      - shell: bash
+        run: |
+          git push origin ${{ inputs.develop_branch }}

@@ -6,3 +6,4 @@ Repository that will contain reusable GitHub Workflows
 | Workflow                   | Description                                 | Documentation Link                                                      |
 |----------------------------|---------------------------------------------|-------------------------------------------------------------------------|
 | reusable-ci                | Execute CI checks                           | [Documentation](docs/REUSABLE-CI.md)                                    |
+| reusable-release           | Execute Release process                     | [Documentation](docs/REUSABLE-RELEASE.md)                               |
