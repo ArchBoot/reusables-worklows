@@ -182,7 +182,8 @@ jobs:
             git push origin "$REF_NAME"
           fi
 
-      - uses: ArchBoot/reusables-actions/.github/actions/create-git-tag@feature/JAGT-actions
+      - name: Generate Git Tag
+        uses: ArchBoot/reusables-actions/.github/actions/create-git-tag@feature/JAGT-actions
         with:
           tag: v${{ steps.release_version.outputs.version }}
           message: 'Release ${{ steps.get_version.outputs.base_version }}'
