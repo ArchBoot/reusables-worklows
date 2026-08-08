@@ -34,7 +34,7 @@ jobs:
           REF_NAME: ${{ github.event.pull_request.base.ref || github.ref_name }}
         with:
           script: |
-            const branchName = proccess.env.REF_NAME;
+            const branchName = process.env.REF_NAME;
             
             if (branchName === 'develop' || branchName.startsWith('release/')) {
               core.notice(`✅ Branch ${branchName} is valid for releases` { title: 'Branch Validation }
@@ -125,7 +125,7 @@ jobs:
         with:
           github-token: ${{ steps.github-app.outputs.token }}
           script: |
-            const version = proccess.env.RELEASE_VERSION;
+            const version = process.env.RELEASE_VERSION;
             
             for (const candidate of [version, `v${version}`]) {
               try {
@@ -135,8 +135,8 @@ jobs:
                   ref: `tags/${candidate}`
                 });
             
-                const branch = proccess.env.REF_NAME;
-                const repoUrl = `${proccess.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}`;
+                const branch = process.env.REF_NAME;
+                const repoUrl = `${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}`;
             
                 await core.summary
                   .addHeading('❌ Release failed: tag already exists', 2)
