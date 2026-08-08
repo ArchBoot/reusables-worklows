@@ -5,8 +5,6 @@ This workflow is designed to automate the release process for your project. It h
 
 | Name             | Description                                                                     | Required | Default                                        |
 |------------------|---------------------------------------------------------------------------------|----------|------------------------------------------------|
-| `develop_branch` | The name of the develop branch to create the release from                       | true     | 'develop'                                      |
-| `next_bump_type` | The type of version bump for the next development version (major, minor, patch) | false    | 'minor'                                        |
 | `git_user_name`  | The name of the Git user for the release commit                                 | false    | 'github-actions[bot]'                          |
 | `git_user_email` | The email of the Git user for the release commit                                | false    | 'github-actions[bot]@users.noreply.github.com' |
 
@@ -24,8 +22,6 @@ jobs:
   release:
     uses: Archbot/reusables-actions/.github/workflows/release.yml@main
     with:
-      develop_branch: 'develop'
-      next_bump_type: 'minor'
       git_user_name: 'Your Name'
       git_user_email: 'your.email@example.com'
 ```
