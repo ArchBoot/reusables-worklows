@@ -35,7 +35,7 @@ jobs:
       stack: ${{ steps.detect_stack.outputs.stack }}
       stack_version: ${{ steps.detect_stack.outputs.stack_version }}
     steps:
-      - name: create GitHub App Token
+      - name: Create GitHub App Token
         id: github-app
         uses: actions/create-github-app-token@v3.0.0
         with:
@@ -49,7 +49,7 @@ jobs:
           ref: ${{ github.base_ref || github.ref_name }}
           fetch-depth: 0
 
-      - name: Configure Git
+      - name: Configure git
         uses: ArchBoot/reusables-actions/.github/actions/setup-git@feature/JAGT-actions
         with:
           git_user_name: ${{ inputs.git_user_name }}
@@ -158,20 +158,21 @@ jobs:
         target_branch: ${{ fromJSON(needs.get_releases.outputs.branches) }}
 
     steps:
-      - name: create GitHub App Token
+      - name: Create GitHub App Token
         id: github-app
         uses: actions/create-github-app-token@v3.0.0
         with:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.PRIVATE_KEY }}
 
-      - uses: actions/checkout@v5
+      - name: Checkout source branch
+        uses: actions/checkout@v5
         with:
           token: ${{ steps.github-app.outputs.token }}
           ref: ${{ matrix.target_branch }}
           fetch-depth: 0
 
-      - name: Configure Git
+      - name: Configure git
         uses: ArchBoot/reusables-actions/.github/actions/setup-git@feature/JAGT-actions
         with:
           git_user_name: ${{ inputs.git_user_name }}
@@ -200,17 +201,20 @@ jobs:
             git checkout -b "$temp_branch" "origin/$base"
             echo "temp_branch=$temp_branch" >> "$GITHUB_ENV"
 
-      - uses: ArchBoot/reusables-actions/.github/actions/set-version@feature/JAGT-actions
+      - name: Set merge version
+        uses: ArchBoot/reusables-actions/.github/actions/set-version@feature/JAGT-actions
         with:
           stack: ${{ needs.get_releases.outputs.stack }}
           version: ${{ steps.target_version.outputs.version }}
           commit: 'true'
           commit_message: 'chore: bump version to ${{ steps.target_version.outputs.version }} [skip ci]'
 
-      - run: |
-          git push origin "$temp_branch"
+      - name: Push merge branch
+        shell: bash
+        run: |
+          git push origin "${{ github.env.temp_branch }}"
 
-      - name: Create PR
+      - name: Create Pull Request
         uses: actions/github-script@v8.0.0
         env:
           BASE_BRANCH: ${{ github.event.pull_request.base.ref || github.ref_name }}
@@ -288,20 +292,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: create GitHub App Token
+      - name: Create GitHub App Token
         id: github-app
         uses: actions/create-github-app-token@v3.0.0
         with:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.PRIVATE_KEY }}
 
-      - uses: actions/checkout@v5
+      - name: Checkout source branch
+        uses: actions/checkout@v5
         with:
           token: ${{ steps.github-app.outputs.token }}
           ref: develop
           fetch-depth: 0
 
-      - name: Configure Git
+      - name: Configure git
         uses: ArchBoot/reusables-actions/.github/actions/setup-git@feature/JAGT-actions
         with:
           git_user_name: ${{ inputs.git_user_name }}
@@ -328,17 +333,22 @@ jobs:
           temp_branch="merge/from-${base//\//-}-to-${target//\//-}"
           git fetch origin "$base"
           git checkout -b "$temp_branch" "origin/$base"
-          git push origin "$temp_branch"
           echo "temp_branch=$temp_branch" >> "$GITHUB_ENV"
 
-      - uses: ArchBoot/reusables-actions/.github/actions/set-version@feature/JAGT-actions
+      - name: Set merge version
+        uses: ArchBoot/reusables-actions/.github/actions/set-version@feature/JAGT-actions
         with:
           stack: ${{ needs.get_releases.outputs.stack }}
           version: ${{ steps.develop_version.outputs.version }}
           commit: 'true'
           commit_message: 'chore: bump version to ${{ steps.develop_version.outputs.version }} [skip ci]'
 
-      - name: Create PR
+      - name: Push merge branch
+        shell: bash
+        run: |
+          git push origin "${{ github.env.temp_branch }}"
+
+      - name: Create Pull Request
         uses: actions/github-script@v8.0.0
         env:
           BASE_BRANCH: ${{ github.event.pull_request.base.ref || github.ref_name }}
