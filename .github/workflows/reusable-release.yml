@@ -37,7 +37,7 @@ jobs:
             const branchName = process.env.REF_NAME;
             
             if (branchName === 'develop' || branchName.startsWith('release/')) {
-              core.notice(`✅ Branch ${branchName} is valid for releases` { title: 'Branch Validation }
+              core.notice(`✅ Branch ${branchName} is valid for releases`, { title: 'Branch Validation }
             } else {
               throw new Error(`Current branch: ${branchName}. Releases can only be created from 'develop' or 'release/**' branches.`)
             }
