@@ -207,7 +207,7 @@ jobs:
           stack: ${{ needs.get_releases.outputs.stack }}
           version: ${{ steps.target_version.outputs.version }}
           commit: 'true'
-          commit_message: 'chore: bump version to ${{ steps.target_version.outputs.version }} [skip ci]'
+          commit_message: 'chore: bump version to ${{ steps.target_version.outputs.version }}'
 
       - name: Push merge branch
         shell: bash
