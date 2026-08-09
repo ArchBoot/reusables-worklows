@@ -82,8 +82,8 @@ jobs:
           github-token: ${{ steps.github-app.outputs.token }}
           script: |
             const currentBranch = process.env.CURRENT_BRANCH;
-            const major = process.env.MAJOR;
-            const minor = process.env.MINOR;
+            const major = Number(process.env.MAJOR);
+            const minor = Number(process.env.MINOR);
             
             const match = currentBranch.match(
               new RegExp(`^release/${major}\\.${minor}$`)
@@ -276,7 +276,7 @@ jobs:
     needs:
       - get_releases
       - propagate
-    if: always() && needs.get_releases.result == 'success' && needs.propagate.result == 'success'
+    if: always() && needs.get_releases.result == 'success' && (needs.propagate.result == 'success' || needs.propagate.result == 'skipped')
     runs-on: ubuntu-latest
 
     steps:
