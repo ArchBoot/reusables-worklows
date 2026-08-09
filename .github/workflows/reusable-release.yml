@@ -93,7 +93,8 @@ jobs:
             exit 1
           fi
 
-      - if: ${{ steps.release_source.outputs.source == 'release' }}
+      - name: Get bump patch version from release source
+        if: ${{ steps.release_source.outputs.source == 'release' }}
         id: release_patch_version
         uses: ArchBoot/reusables-actions/.github/actions/bump-version@feature/JAGT-actions
         with:
@@ -101,7 +102,8 @@ jobs:
           current_version: ${{ steps.get_version.outputs.base_version }}
           snapshot: 'false'
 
-      - id: release_version
+      - name: Calculate release version
+        id: release_version
         shell: bash
         env:
           RELEASE_SOURCE: ${{ steps.release_source.outputs.source }}
@@ -197,12 +199,14 @@ jobs:
           bump_type: minor
           snapshot: 'true'
 
-      - if: ${{ steps.release_source.outputs.source == 'develop' }}
+      - name: Checkout to develop
+        if: ${{ steps.release_source.outputs.source == 'develop' }}
         shell: bash
         run:
           git checkout develop
 
-      - if: ${{ steps.release_source.outputs.source == 'develop' }}
+      - name: Set bump version to develop
+        if: ${{ steps.release_source.outputs.source == 'develop' }}
         uses: ArchBoot/reusables-actions/.github/actions/set-version@feature/JAGT-actions
         with:
           stack: ${{ steps.detect_stack.outputs.stack }}
@@ -210,7 +214,8 @@ jobs:
           commit: 'true'
           commit_message: 'chore: bump version to ${{ steps.bump_version.outputs.next_version }} [skip ci]'
 
-      - if: ${{ steps.release_source.outputs.source == 'develop' }}
+      - name: Push to develop
+        if: ${{ steps.release_source.outputs.source == 'develop' }}
         shell: bash
         run: |
           git push origin develop
