@@ -212,7 +212,7 @@ jobs:
       - name: Push merge branch
         shell: bash
         run: |
-          git push origin "${{ github.env.temp_branch }}"
+          git push origin "${{ env.temp_branch }}"
 
       - name: Create Pull Request
         uses: actions/github-script@v8.0.0
