@@ -2,29 +2,23 @@ name: CI
 
 on:
   workflow_call:
-    inputs:
-      run_sonar:
-        description: Whether to run SonarQube analysis
-        type: boolean
-        default: false
-      sonar_project_key:
-        description: SonarQube project key
-        type: string
-        required: false
-      sonar_project_name:
-        description: SonarQube project name
-        type: string
-        required: false
-    secrets:
-      sonar_host_url:
-        description: SonarQube host URL
-        required: false
-      sonar_token:
-        description: SonarQube authentication token
-        required: false
+
+permissions:
+  actions: read
+  attestations: write
+  checks: write
+  contents: read
+  id-token: write
+  statuses: write
+  pull-requests: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 jobs:
-  build-and-test:
+  ci:
+    name: CI
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -42,6 +36,19 @@ jobs:
           stack: ${{ steps.detect_stack.outputs.stack }}
           stack_version: ${{ steps.detect_stack.outputs.stack_version }}
 
+      - name: Jira analysis
+        id: jira
+        if: ${{ vars.JIRA_VALIDATE == 'true' }}
+        uses: ArchBoot/reusables-actions/.github/actions/jira-analysis@feature/JAGT-actions
+        with:
+          ticket_source: ${{ vars.JIRA_TICKET_SOURCE || 'auto' }}
+          jira_base_url: ${{ vars.JIRA_BASE_URL }}
+          jira_email: ${{ vars.JIRA_EMAIL }}
+          jira_api_token: ${{ vars.JIRA_API_TOKEN }}
+          allowed_statuses: ${{ vars.JIRA_ALLOWED_STATUSES }}
+          fail_on_invalid: 'false'
+          fail_if_not_found: 'false'
+
       - name: Build
         uses: ArchBoot/reusables-actions/.github/actions/build@feature/JAGT-actions
         with:
@@ -52,19 +59,33 @@ jobs:
         with:
           stack: ${{ steps.detect_stack.outputs.stack }}
 
-      - name: SonarQube Scan
-        if: ${{ inputs.run_sonar == true }}
+      - name: SonarQube Create Project
+        if: ${{ vars.SONAR_RUN == 'true' }}
         uses: ArchBoot/reusables-actions/.github/actions/sonar-create-project@feature/JAGT-actions
         with:
-          sonar_host_url: ${{ secrets.sonar_host_url }}
-          sonar_token: ${{ secrets.sonar_token }}
-          project_key: ${{ inputs.sonar_project_key }}
-          project_name: ${{ inputs.sonar_project_name }}
+          sonar_host_url: ${{ vars.SONAR_HOST_URL }}
+          sonar_token: ${{ secrets.SONAR_TOKEN }}
+          project_key: ${{ github.repository_owner }}-${{ github.event.repository.name }}
+          project_name: ${{ github.repository_owner }}-${{ github.event.repository.name }}
+          analysis_type: ${{ steps.sonar_context.outputs.analysis_type }}
+          branch_name: ${{ steps.sonar_context.outputs.branch_name }}
+          pr_key: ${{ steps.sonar_context.outputs.pr_key }}
+          pr_branch: ${{ steps.sonar_context.outputs.pr_branch }}
+          pr_base: ${{ steps.sonar_context.outputs.pr_base }}
+          ticket_id: ${{ steps.jira.outputs.ticket_id }}
+
 
       - uses: ArchBoot/reusables-actions/.github/actions/sonarqube-scan@feature/JAGT-actions
         with:
           stack: ${{ steps.detect_stack.outputs.stack }}
-          sonar_host_url: ${{ secrets.sonar_host_url }}
-          sonar_token: ${{ secrets.sonar_token }}
-          project_key: ${{ inputs.sonar_project_key }}
-          project_name: ${{ inputs.sonar_project_name }}
+          sonar_host_url: ${{ vars.SONAR_HOST_URL }}
+          sonar_token: ${{ secrets.SONAR_TOKEN }}
+          project_key: ${{ github.repository_owner }}-${{ github.event.repository.name }}
+          project_name: ${{ github.repository_owner }}-${{ github.event.repository.name }}
+
+
+      - name: Add report to summary
+        if: always()
+        shell: bash
+        run: |
+          echo ":link: [SonarQube dashboard](${{ vars.SONAR_HOST_URL }}/dashboard?id=${{  }})" >> $GITHUB_STEP_SUMMARY
