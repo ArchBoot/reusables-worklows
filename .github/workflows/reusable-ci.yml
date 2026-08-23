@@ -74,8 +74,8 @@ jobs:
           pr_base: ${{ steps.sonar_context.outputs.pr_base }}
           ticket_id: ${{ steps.jira.outputs.ticket_id }}
 
-
-      - uses: ArchBoot/reusables-actions/.github/actions/sonarqube-scan@feature/JAGT-actions
+      - name: SonarQube Scan
+        uses: ArchBoot/reusables-actions/.github/actions/sonarqube-scan@feature/JAGT-actions
         with:
           stack: ${{ steps.detect_stack.outputs.stack }}
           sonar_host_url: ${{ vars.SONAR_HOST_URL }}
