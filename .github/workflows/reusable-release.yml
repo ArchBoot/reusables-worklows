@@ -229,6 +229,6 @@ jobs:
             await github.rest.actions.createWorkflowDispatch(
               owner: context.repo.owner,
               repo: context.repo.repo,
-              workflow_id: 'ci-app.yml'.
+              workflow_id: 'ci-app.yml',
               ref: 'refs/tags/' + process.env.RELEASE_VERSION
             );
