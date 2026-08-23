@@ -59,6 +59,11 @@ jobs:
         with:
           stack: ${{ steps.detect_stack.outputs.stack }}
 
+      - name: Detect Sonar context
+        id: sonar_context
+        if: ${{ vars.SONAR_RUN == 'true' }}
+        uses: ArchBoot/reusables-actions/.github/actions/detect-sonar-context@feature/JAGT-actions
+
       - name: SonarQube Create Project
         if: ${{ vars.SONAR_RUN == 'true' }}
         uses: ArchBoot/reusables-actions/.github/actions/sonar-create-project@feature/JAGT-actions
