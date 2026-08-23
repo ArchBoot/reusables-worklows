@@ -43,8 +43,8 @@ jobs:
         with:
           ticket_source: ${{ vars.JIRA_TICKET_SOURCE || 'auto' }}
           jira_base_url: ${{ vars.JIRA_BASE_URL }}
-          jira_email: ${{ vars.JIRA_EMAIL }}
-          jira_api_token: ${{ vars.JIRA_API_TOKEN }}
+          jira_email: ${{ secrets.JIRA_EMAIL }}
+          jira_api_token: ${{ secrets.JIRA_API_TOKEN }}
           allowed_statuses: ${{ vars.JIRA_ALLOWED_STATUSES }}
           fail_on_invalid: 'false'
           fail_if_not_found: 'false'
@@ -88,4 +88,21 @@ jobs:
         if: always()
         shell: bash
         run: |
-          echo ":link: [SonarQube dashboard](${{ vars.SONAR_HOST_URL }}/dashboard?id=${{  }})" >> $GITHUB_STEP_SUMMARY
+          PROJECT_KEY="${{ github.repository_owner }}-${{ github.event.repository.name }}"
+
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            SONAR_URL="${{ vars.SONAR_HOST_URL }}/dashboard?id=${PROJECT_KEY}&pullRequest=${{ github.event.pull_request.number }}"
+            CONTEXT="PR #${{ github.event.pull_request.number }}"
+          else
+            BRANCH_NAME="${{ github.ref_name }}"
+            SONAR_URL="${{ vars.SONAR_HOST_URL }}/dashboard?id=${PROJECT_KEY}&branch=${BRANCH_NAME}"
+            CONTEXT="branch \`${BRANCH_NAME}\`"
+          fi
+
+          {
+            echo "## 📊 CI Summary"
+            echo ""
+            echo "### 🔎 SonarQube"
+            echo "- Analysis: ${CONTEXT}"
+            echo "- [Open SonarQube Dashboard](${SONAR_URL})"
+          } >> "$GITHUB_STEP_SUMMARY"
