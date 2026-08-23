@@ -170,7 +170,7 @@ jobs:
           stack: ${{ steps.detect_stack.outputs.stack }}
           version: ${{ steps.release_version.outputs.version }}
           commit: 'true'
-          commit_message: 'chore: release ${{ steps.release_version.outputs.version }} [skip ci]'
+          commit_message: '[GitHub Release] chore: update version to ${{ steps.release_version.outputs.version }}'
 
       - name: Push Release Branch
         shell: bash
@@ -212,7 +212,7 @@ jobs:
           stack: ${{ steps.detect_stack.outputs.stack }}
           version: ${{ steps.bump_version.outputs.next_version }}
           commit: 'true'
-          commit_message: 'chore: bump version to ${{ steps.bump_version.outputs.next_version }} [skip ci]'
+          commit_message: '[GitHub Release] chore: update version to ${{ steps.bump_version.outputs.next_version }}'
 
       - name: Push to develop
         if: ${{ steps.release_source.outputs.source == 'develop' }}
