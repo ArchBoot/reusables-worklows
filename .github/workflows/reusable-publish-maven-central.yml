@@ -18,22 +18,22 @@ jobs:
 
       - name: Detect tech stack
         id: detect_stack
-        uses: ArchBoot/reusables-actions/.github/actions/detect-stack@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/detect-stack@main
 
       - name: Setup environment
-        uses: ArchBoot/reusables-actions/.github/actions/setup-environment@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/setup-environment@main
         with:
           stack: ${{ steps.detect_stack.outputs.stack }}
           stack_version: ${{ steps.detect_stack.outputs.stack_version }}
 
       - name: Get version
         id: get_version
-        uses: ArchBoot/reusables-actions/.github/actions/get-version@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/get-version@main
         with:
           stack: ${{ steps.detect_stack.outputs.stack }}
 
       - name: Publish to Maven Central
-        uses: ArchBoot/reusables-actions/.github/actions/publish-maven-central@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/publish-maven-central@main
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}

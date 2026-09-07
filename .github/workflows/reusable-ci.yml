@@ -28,10 +28,10 @@ jobs:
 
       - name: Detect tech stack
         id: detect_stack
-        uses: ArchBoot/reusables-actions/.github/actions/detect-stack@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/detect-stack@main
 
       - name: Setup environment
-        uses: ArchBoot/reusables-actions/.github/actions/setup-environment@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/setup-environment@main
         with:
           stack: ${{ steps.detect_stack.outputs.stack }}
           stack_version: ${{ steps.detect_stack.outputs.stack_version }}
@@ -39,7 +39,7 @@ jobs:
       - name: Jira analysis
         id: jira
         if: ${{ vars.JIRA_VALIDATE == 'true' }}
-        uses: ArchBoot/reusables-actions/.github/actions/jira-analysis@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/jira-analysis@main
         with:
           ticket_source: ${{ vars.JIRA_TICKET_SOURCE || 'auto' }}
           jira_base_url: ${{ vars.JIRA_BASE_URL }}
@@ -50,37 +50,32 @@ jobs:
           fail_if_not_found: 'false'
 
       - name: Build
-        uses: ArchBoot/reusables-actions/.github/actions/build@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/build@main
         with:
           stack: ${{ steps.detect_stack.outputs.stack }}
 
       - name: Test
-        uses: ArchBoot/reusables-actions/.github/actions/test@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/test@main
         with:
           stack: ${{ steps.detect_stack.outputs.stack }}
 
       - name: Detect Sonar context
         id: sonar_context
         if: ${{ vars.SONAR_RUN == 'true' }}
-        uses: ArchBoot/reusables-actions/.github/actions/detect-sonar-context@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/detect-sonar-context@main
 
       - name: SonarQube Create Project
         if: ${{ vars.SONAR_RUN == 'true' }}
-        uses: ArchBoot/reusables-actions/.github/actions/sonar-create-project@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/sonar-create-project@main
         with:
           sonar_host_url: ${{ vars.SONAR_HOST_URL }}
           sonar_token: ${{ secrets.SONAR_TOKEN }}
           project_key: ${{ github.repository_owner }}-${{ github.event.repository.name }}
           project_name: ${{ github.repository_owner }}-${{ github.event.repository.name }}
-          analysis_type: ${{ steps.sonar_context.outputs.analysis_type }}
-          branch_name: ${{ steps.sonar_context.outputs.branch_name }}
-          pr_key: ${{ steps.sonar_context.outputs.pr_key }}
-          pr_branch: ${{ steps.sonar_context.outputs.pr_branch }}
-          pr_base: ${{ steps.sonar_context.outputs.pr_base }}
-          ticket_id: ${{ steps.jira.outputs.ticket_id }}
+
 
       - name: SonarQube Scan
-        uses: ArchBoot/reusables-actions/.github/actions/sonarqube-scan@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/sonarqube-scan@main
         with:
           stack: ${{ steps.detect_stack.outputs.stack }}
           sonar_host_url: ${{ vars.SONAR_HOST_URL }}
@@ -88,7 +83,11 @@ jobs:
           project_key: ${{ github.repository_owner }}-${{ github.event.repository.name }}
           project_name: ${{ github.repository_owner }}-${{ github.event.repository.name }}
           quality_gate_wait: ${{ vars.QUALITY_GATE_WAIT }}
-
+          analysis_type: ${{ steps.sonar_context.outputs.analysis_type }}
+          branch_name: ${{ steps.sonar_context.outputs.branch_name }}
+          pr_key: ${{ steps.sonar_context.outputs.pr_key }}
+          pr_branch: ${{ steps.sonar_context.outputs.pr_branch }}
+          pr_base: ${{ steps.sonar_context.outputs.pr_base }}
 
       - name: Add report to summary
         if: always()
