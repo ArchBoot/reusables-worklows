@@ -22,17 +22,17 @@ jobs:
 
       - name: Detect tech stack
         id: detect_stack
-        uses: ArchBoot/reusables-actions/.github/actions/detect-stack@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/detect-stack@main
 
       - name: Setup environment
-        uses: ArchBoot/reusables-actions/.github/actions/setup-environment@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/setup-environment@main
         with:
           stack: ${{ steps.detect_stack.outputs.stack }}
           stack_version: ${{ steps.detect_stack.outputs.stack_version }}
 
       - name: Get version
         id: get_version
-        uses: ArchBoot/reusables-actions/.github/actions/get-version@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/get-version@main
         with:
           stack: ${{ steps.detect_stack.outputs.stack }}
 
@@ -46,12 +46,12 @@ jobs:
 
       - name: Generate Dockerfile
         id: dockerfile
-        uses: ArchBoot/reusables-actions/.github/actions/generate-dockerfile@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/generate-dockerfile@main
         with:
           stack: ${{ needs.detect.outputs.stack }}
 
       - name: Build docker image
-        uses: ArchBoot/reusables-actions/.github/actions/docker-build@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/docker-build@main
         with:
           image_name: ${{ github.repository_owner }}-${{ github.event.repository.name }}
           image_tag: ${{ needs.detect.outputs.version }}
@@ -75,7 +75,7 @@ jobs:
           docker push "${{ github.repository_owner }}-${{ github.event.repository.name }}:${{ needs.detect.outputs.version }}"
 
       - name: Deploy VPS
-        uses: ArchBoot/reusables-actions/.github/actions/deploy-vps@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/deploy-vps@main
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}

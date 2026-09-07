@@ -50,24 +50,24 @@ jobs:
           fetch-depth: 0
 
       - name: Configure git
-        uses: ArchBoot/reusables-actions/.github/actions/setup-git@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/setup-git@main
         with:
           git_user_name: ${{ inputs.git_user_name }}
           git_user_email: ${{ inputs.git_user_email }}
 
       - name: Detect tech stack
         id: detect_stack
-        uses: ArchBoot/reusables-actions/.github/actions/detect-stack@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/detect-stack@main
 
       - name: Setup environment
-        uses: ArchBoot/reusables-actions/.github/actions/setup-environment@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/setup-environment@main
         with:
           stack: ${{ steps.detect_stack.outputs.stack }}
           stack_version: ${{ steps.detect_stack.outputs.stack_version }}
 
       - name: Get version
         id: get_version
-        uses: ArchBoot/reusables-actions/.github/actions/get-version@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/get-version@main
         with:
           stack: ${{ steps.detect_stack.outputs.stack }}
 
@@ -173,20 +173,20 @@ jobs:
           fetch-depth: 0
 
       - name: Configure git
-        uses: ArchBoot/reusables-actions/.github/actions/setup-git@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/setup-git@main
         with:
           git_user_name: ${{ inputs.git_user_name }}
           git_user_email: ${{ inputs.git_user_email }}
 
       - name: Setup environment
-        uses: ArchBoot/reusables-actions/.github/actions/setup-environment@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/setup-environment@main
         with:
           stack: ${{ needs.get_releases.outputs.stack }}
           stack_version: ${{ needs.get_releases.outputs.stack_version }}
 
       - name: Get version
         id: target_version
-        uses: ArchBoot/reusables-actions/.github/actions/get-version@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/get-version@main
         with:
           stack: ${{ needs.get_releases.outputs.stack }}
 
@@ -202,7 +202,7 @@ jobs:
             echo "temp_branch=$temp_branch" >> "$GITHUB_ENV"
 
       - name: Set merge version
-        uses: ArchBoot/reusables-actions/.github/actions/set-version@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/set-version@main
         with:
           stack: ${{ needs.get_releases.outputs.stack }}
           version: ${{ steps.target_version.outputs.version }}
@@ -307,20 +307,20 @@ jobs:
           fetch-depth: 0
 
       - name: Configure git
-        uses: ArchBoot/reusables-actions/.github/actions/setup-git@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/setup-git@main
         with:
           git_user_name: ${{ inputs.git_user_name }}
           git_user_email: ${{ inputs.git_user_email }}
 
       - name: Setup environment
-        uses: ArchBoot/reusables-actions/.github/actions/setup-environment@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/setup-environment@main
         with:
           stack: ${{ needs.get_releases.outputs.stack }}
           stack_version: ${{ needs.get_releases.outputs.stack_version }}
 
       - name: Get version
         id: develop_version
-        uses: ArchBoot/reusables-actions/.github/actions/get-version@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/get-version@main
         with:
           stack: ${{ needs.get_releases.outputs.stack }}
 
@@ -336,7 +336,7 @@ jobs:
           echo "temp_branch=$temp_branch" >> "$GITHUB_ENV"
 
       - name: Set merge version
-        uses: ArchBoot/reusables-actions/.github/actions/set-version@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/set-version@main
         with:
           stack: ${{ needs.get_releases.outputs.stack }}
           version: ${{ steps.develop_version.outputs.version }}

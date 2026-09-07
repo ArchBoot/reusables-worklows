@@ -57,24 +57,24 @@ jobs:
           fetch-depth: 0
 
       - name: Configure Git
-        uses: ArchBoot/reusables-actions/.github/actions/setup-git@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/setup-git@main
         with:
           git_user_name: ${{ inputs.git_user_name }}
           git_user_email: ${{ inputs.git_user_email }}
 
       - name: Detect tech stack
         id: detect_stack
-        uses: ArchBoot/reusables-actions/.github/actions/detect-stack@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/detect-stack@main
 
       - name: Setup environment
-        uses: ArchBoot/reusables-actions/.github/actions/setup-environment@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/setup-environment@main
         with:
           stack: ${{ steps.detect_stack.outputs.stack }}
           stack_version: ${{ steps.detect_stack.outputs.stack_version }}
 
       - name: Get current version
         id: get_version
-        uses: ArchBoot/reusables-actions/.github/actions/get-version@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/get-version@main
         with:
           stack: ${{ steps.detect_stack.outputs.stack }}
 
@@ -96,7 +96,7 @@ jobs:
       - name: Get bump patch version from release source
         if: ${{ steps.release_source.outputs.source == 'release' }}
         id: release_patch_version
-        uses: ArchBoot/reusables-actions/.github/actions/bump-version@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/bump-version@main
         with:
           bump_type: patch
           current_version: ${{ steps.get_version.outputs.base_version }}
@@ -158,14 +158,14 @@ jobs:
       - name: Create Release
         if: ${{ steps.release_source.outputs.source == 'develop' }}
         id: release_branch
-        uses: ArchBoot/reusables-actions/.github/actions/create-branch@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/create-branch@main
         with:
           base_branch: 'develop'
           new_branch: release/${{ steps.get_version.outputs.major }}.${{ steps.get_version.outputs.minor }}
           push: 'false'
 
       - name: Set Release Version
-        uses: ArchBoot/reusables-actions/.github/actions/set-version@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/set-version@main
         with:
           stack: ${{ steps.detect_stack.outputs.stack }}
           version: ${{ steps.release_version.outputs.version }}
@@ -185,7 +185,7 @@ jobs:
           fi
 
       - name: Generate Git Tag
-        uses: ArchBoot/reusables-actions/.github/actions/create-git-tag@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/create-git-tag@main
         with:
           tag: v${{ steps.release_version.outputs.version }}
           message: 'Release ${{ steps.get_version.outputs.base_version }}'
@@ -193,7 +193,7 @@ jobs:
       - name: Bump develop version
         if: ${{ steps.release_source.outputs.source == 'develop' }}
         id: bump_version
-        uses: ArchBoot/reusables-actions/.github/actions/bump-version@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/bump-version@main
         with:
           current_version: ${{ steps.get_version.outputs.base_version }}
           bump_type: minor
@@ -207,7 +207,7 @@ jobs:
 
       - name: Set bump version to develop
         if: ${{ steps.release_source.outputs.source == 'develop' }}
-        uses: ArchBoot/reusables-actions/.github/actions/set-version@feature/JAGT-actions
+        uses: ArchBoot/reusables-actions/.github/actions/set-version@main
         with:
           stack: ${{ steps.detect_stack.outputs.stack }}
           version: ${{ steps.bump_version.outputs.next_version }}
