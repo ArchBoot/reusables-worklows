@@ -1,0 +1,42 @@
+name: Publish Maven Central
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  publish-maven-central:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Detect tech stack
+        id: detect_stack
+        uses: ArchBoot/reusables-actions/.github/actions/detect-stack@feature/JAGT-actions
+
+      - name: Setup environment
+        uses: ArchBoot/reusables-actions/.github/actions/setup-environment@feature/JAGT-actions
+        with:
+          stack: ${{ steps.detect_stack.outputs.stack }}
+          stack_version: ${{ steps.detect_stack.outputs.stack_version }}
+
+      - name: Get version
+        id: get_version
+        uses: ArchBoot/reusables-actions/.github/actions/get-version@feature/JAGT-actions
+        with:
+          stack: ${{ steps.detect_stack.outputs.stack }}
+
+      - name: Publish to Maven Central
+        uses: ArchBoot/reusables-actions/.github/actions/publish-maven-central@feature/JAGT-actions
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
+          central_username: ${{ secrets.CENTRAL_USERNAME }}
+          cental_password: ${{ secrets.CENTRAL_PASSWORD }}
+          version: ${{ steps.get_version.outputs.version }}
