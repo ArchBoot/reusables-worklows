@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  workflow_call:
+
+permissions:
+  actions: read
+  attestations: write
+  checks: write
+  contents: read
+  id-token: write
+  statuses: write
+  pull-requests: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  ci:
+    name: CI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Detect tech stack
+        id: detect_stack
+        uses: ArchBoot/reusables-actions/.github/actions/detect-stack@feature/JAGT-actions
+
+      - name: Setup environment
+        uses: ArchBoot/reusables-actions/.github/actions/setup-environment@feature/JAGT-actions
+        with:
+          stack: ${{ steps.detect_stack.outputs.stack }}
+          stack_version: ${{ steps.detect_stack.outputs.stack_version }}
+
+      - name: Jira analysis
+        id: jira
+        if: ${{ vars.JIRA_VALIDATE == 'true' }}
+        uses: ArchBoot/reusables-actions/.github/actions/jira-analysis@feature/JAGT-actions
+        with:
+          ticket_source: ${{ vars.JIRA_TICKET_SOURCE || 'auto' }}
+          jira_base_url: ${{ vars.JIRA_BASE_URL }}
+          jira_email: ${{ secrets.JIRA_EMAIL }}
+          jira_api_token: ${{ secrets.JIRA_API_TOKEN }}
+          allowed_statuses: ${{ vars.JIRA_ALLOWED_STATUSES }}
+          fail_on_invalid: 'false'
+          fail_if_not_found: 'false'
+
+      - name: Build
+        uses: ArchBoot/reusables-actions/.github/actions/build@feature/JAGT-actions
+        with:
+          stack: ${{ steps.detect_stack.outputs.stack }}
+
+      - name: Test
+        uses: ArchBoot/reusables-actions/.github/actions/test@feature/JAGT-actions
+        with:
+          stack: ${{ steps.detect_stack.outputs.stack }}
+
+      - name: Detect Sonar context
+        id: sonar_context
+        if: ${{ vars.SONAR_RUN == 'true' }}
+        uses: ArchBoot/reusables-actions/.github/actions/detect-sonar-context@feature/JAGT-actions
+
+      - name: SonarQube Create Project
+        if: ${{ vars.SONAR_RUN == 'true' }}
+        uses: ArchBoot/reusables-actions/.github/actions/sonar-create-project@feature/JAGT-actions
+        with:
+          sonar_host_url: ${{ vars.SONAR_HOST_URL }}
+          sonar_token: ${{ secrets.SONAR_TOKEN }}
+          project_key: ${{ github.repository_owner }}-${{ github.event.repository.name }}
+          project_name: ${{ github.repository_owner }}-${{ github.event.repository.name }}
+          analysis_type: ${{ steps.sonar_context.outputs.analysis_type }}
+          branch_name: ${{ steps.sonar_context.outputs.branch_name }}
+          pr_key: ${{ steps.sonar_context.outputs.pr_key }}
+          pr_branch: ${{ steps.sonar_context.outputs.pr_branch }}
+          pr_base: ${{ steps.sonar_context.outputs.pr_base }}
+          ticket_id: ${{ steps.jira.outputs.ticket_id }}
+
+      - name: SonarQube Scan
+        uses: ArchBoot/reusables-actions/.github/actions/sonarqube-scan@feature/JAGT-actions
+        with:
+          stack: ${{ steps.detect_stack.outputs.stack }}
+          sonar_host_url: ${{ vars.SONAR_HOST_URL }}
+          sonar_token: ${{ secrets.SONAR_TOKEN }}
+          project_key: ${{ github.repository_owner }}-${{ github.event.repository.name }}
+          project_name: ${{ github.repository_owner }}-${{ github.event.repository.name }}
+          quality_gate_wait: ${{ vars.QUALITY_GATE_WAIT }}
+
+
+      - name: Add report to summary
+        if: always()
+        shell: bash
+        run: |
+          PROJECT_KEY="${{ github.repository_owner }}-${{ github.event.repository.name }}"
+
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            SONAR_URL="${{ vars.SONAR_HOST_URL }}/dashboard?id=${PROJECT_KEY}&pullRequest=${{ github.event.pull_request.number }}"
+            CONTEXT="PR #${{ github.event.pull_request.number }}"
+          else
+            BRANCH_NAME="${{ github.ref_name }}"
+            SONAR_URL="${{ vars.SONAR_HOST_URL }}/dashboard?id=${PROJECT_KEY}&branch=${BRANCH_NAME}"
+            CONTEXT="branch \`${BRANCH_NAME}\`"
+          fi
+
+          {
+            echo "## 📊 CI Summary"
+            echo ""
+            echo "### 🔎 SonarQube"
+            echo "- Analysis: ${CONTEXT}"
+            echo "- [Open SonarQube Dashboard](${SONAR_URL})"
+          } >> "$GITHUB_STEP_SUMMARY"

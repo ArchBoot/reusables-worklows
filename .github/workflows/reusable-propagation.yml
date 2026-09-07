@@ -1,0 +1,418 @@
+name: Cascading Auto Merge
+
+on:
+  workflow_call:
+    inputs:
+      git_user_name:
+        description: 'The name of the Git user for the release commit'
+        type: string
+        required: false
+        default: 'github-actions[bot]'
+      git_user_email:
+        description: 'The email of the Git user for the release commit'
+        type: string
+        required: false
+        default: 'github-actions[bot]@users.noreply.github.com'
+
+permissions:
+  contents: write
+  id-token: write
+  pull-requests: write
+
+concurrency:
+  group: cascading-automerge-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  get_releases:
+    name: Detect target releases
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || (github.event.pull_request.merged == true && !startsWith(github.event.pull_request.head.ref, 'merge'))
+    outputs:
+      branches: ${{ steps.get_releases.outputs.branches }}
+      count: ${{ steps.get_releases.outputs.count }}
+      version: ${{ steps.get_releases.outputs.version }}
+      stack: ${{ steps.detect_stack.outputs.stack }}
+      stack_version: ${{ steps.detect_stack.outputs.stack_version }}
+    steps:
+      - name: Create GitHub App Token
+        id: github-app
+        uses: actions/create-github-app-token@v3.0.0
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.PRIVATE_KEY }}
+
+      - name: Checkout source branch
+        uses: actions/checkout@v5
+        with:
+          token: ${{ steps.github-app.outputs.token }}
+          ref: ${{ github.base_ref || github.ref_name }}
+          fetch-depth: 0
+
+      - name: Configure git
+        uses: ArchBoot/reusables-actions/.github/actions/setup-git@feature/JAGT-actions
+        with:
+          git_user_name: ${{ inputs.git_user_name }}
+          git_user_email: ${{ inputs.git_user_email }}
+
+      - name: Detect tech stack
+        id: detect_stack
+        uses: ArchBoot/reusables-actions/.github/actions/detect-stack@feature/JAGT-actions
+
+      - name: Setup environment
+        uses: ArchBoot/reusables-actions/.github/actions/setup-environment@feature/JAGT-actions
+        with:
+          stack: ${{ steps.detect_stack.outputs.stack }}
+          stack_version: ${{ steps.detect_stack.outputs.stack_version }}
+
+      - name: Get version
+        id: get_version
+        uses: ArchBoot/reusables-actions/.github/actions/get-version@feature/JAGT-actions
+        with:
+          stack: ${{ steps.detect_stack.outputs.stack }}
+
+      - name: Get Releases to Propagate
+        id: get_releases
+        uses: actions/github-script@v8.0.0
+        env:
+          CURRENT_BRANCH: ${{ github.event.pull_request.base.ref || github.ref_name }}
+          MAJOR: ${{ steps.get_version.outputs.major }}
+          MINOR: ${{ steps.get_version.outputs.minor }}
+        with:
+          github-token: ${{ steps.github-app.outputs.token }}
+          script: |
+            const currentBranch = process.env.CURRENT_BRANCH;
+            const major = Number(process.env.MAJOR);
+            const minor = Number(process.env.MINOR);
+            
+            const match = currentBranch.match(
+              new RegExp(`^release/${major}\\.${minor}$`)
+            );
+            
+            if (!match) {
+              throw new Error(
+                `Current branch (${currentBranch}) not matches with expected release/${major}.${minor}`
+              );
+            }
+            
+            core.info(`Current release: ${major}.${minor}`);
+            
+            const branches = await github.paginate(
+              github.rest.repos.listBranches,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                per_page: 1000
+              }
+            );
+            
+            const releaseBranches = branches
+              .map(branch => branch.name)
+              .filter(name => /^release\/\d+\.\d+$/.test(name))
+              .map(name => {
+                const [, major_v, minor_v] = name.match(
+                  /^release\/(\d+)\.(\d+)$/
+                );
+            
+                return {
+                  name,
+                  major: Number(major_v),
+                  minor: Number(minor_v)
+                };
+              })
+              .filter(branch =>
+                branch.major > major || (branch.major === major && branch.minor > minor)
+              )
+              .sort((a,b) =>
+                a.major - b.major || a.minor - b.minor
+              )
+              .map(branch => branch.name);
+            
+            core.info(
+              `Branches to propagate: ${releaseBranches.join(', ') || 'none'}`
+            );
+            
+            core.setOutput(
+              'branches',
+              JSON.stringify(releaseBranches)
+            );
+            
+            core.setOutput(
+              'count',
+              releaseBranches.length
+            );
+            
+            core.setOutput(
+              'version',
+              `${major}.${minor}`
+            );
+
+  propagate:
+    name: Propagate to ${{ matrix.target_branch }}
+    needs: get_releases
+    if: needs.get_releases.outputs.count > 0
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target_branch: ${{ fromJSON(needs.get_releases.outputs.branches) }}
+
+    steps:
+      - name: Create GitHub App Token
+        id: github-app
+        uses: actions/create-github-app-token@v3.0.0
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.PRIVATE_KEY }}
+
+      - name: Checkout source branch
+        uses: actions/checkout@v5
+        with:
+          token: ${{ steps.github-app.outputs.token }}
+          ref: ${{ matrix.target_branch }}
+          fetch-depth: 0
+
+      - name: Configure git
+        uses: ArchBoot/reusables-actions/.github/actions/setup-git@feature/JAGT-actions
+        with:
+          git_user_name: ${{ inputs.git_user_name }}
+          git_user_email: ${{ inputs.git_user_email }}
+
+      - name: Setup environment
+        uses: ArchBoot/reusables-actions/.github/actions/setup-environment@feature/JAGT-actions
+        with:
+          stack: ${{ needs.get_releases.outputs.stack }}
+          stack_version: ${{ needs.get_releases.outputs.stack_version }}
+
+      - name: Get version
+        id: target_version
+        uses: ArchBoot/reusables-actions/.github/actions/get-version@feature/JAGT-actions
+        with:
+          stack: ${{ needs.get_releases.outputs.stack }}
+
+      - name: Create merge branch
+        shell: bash
+        run: |
+            set -euo pipefail
+            base="${{ github.event.pull_request.base.ref || github.ref_name }}"
+            target="${{ matrix.target_branch }}"
+            temp_branch="merge/from-${base//\//-}-to-${target//\//-}"
+            git fetch origin "$base"
+            git checkout -b "$temp_branch" "origin/$base"
+            echo "temp_branch=$temp_branch" >> "$GITHUB_ENV"
+
+      - name: Set merge version
+        uses: ArchBoot/reusables-actions/.github/actions/set-version@feature/JAGT-actions
+        with:
+          stack: ${{ needs.get_releases.outputs.stack }}
+          version: ${{ steps.target_version.outputs.version }}
+          commit: 'true'
+          commit_message: 'chore: bump version to ${{ steps.target_version.outputs.version }}'
+
+      - name: Push merge branch
+        shell: bash
+        run: |
+          git push origin "${{ env.temp_branch }}"
+
+      - name: Create Pull Request
+        uses: actions/github-script@v8.0.0
+        env:
+          BASE_BRANCH: ${{ github.event.pull_request.base.ref || github.ref_name }}
+          TARGET_BRANCH: ${{ matrix.target_branch }}
+          TEMP_BRANCH: ${{ env.temp_branch }}
+          BASE_VERSION: ${{ needs.get_releases.outputs.version }}
+          TARGET_VERSION: ${{ steps.target_version.outputs.version }}
+        with:
+            github-token: ${{ steps.github-app.outputs.token }}
+            script: |
+              const base = process.env.BASE_BRANCH;
+              const target = process.env.TARGET_BRANCH;
+              const head = process.env.TEMP_BRANCH;
+              
+              const baseVersion = process.env.BASE_VERSION;
+              const targetVersion = process.env.TARGET_VERSION;
+              
+              const title = `Patch from ${base} to ${target}`;
+              const prTitle = `[Automerge] ${title}`;
+              const prTitleConflicts = `:warning: [Merge conflict] ${title} :warning:`;
+              
+              const prBody = [
+                `This Pull Request was automatically created by the Propagation action to sync changes from \`${base}\` to \`${target}\`.`,
+                '',
+                '**Versions**',
+                `- Current version: \`${baseVersion}\``,
+                `- Target version: \`${targetVersion}\``
+              ].join('\n');
+              
+              const { data: pr } = await github.rest.pulls.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: prTitle,
+                head,
+                base: target,
+                body: prBody
+              });
+              
+              try {
+                await github.rest.pulls.merge({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: pr.number,
+                  merge_method: 'merge'
+                });
+              
+                core.info(`Successfully merged Pull Request #${pr.number}`);
+              
+              await github.rest.git.deleteRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: `heads/${head}`
+              });
+              
+              core.info(`Deleted temporary branch ${head}`);
+              } catch (err) {
+                core.warning(`Auto-merge failed: ${err.message}`);
+              
+                await github.rest.pulls.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: pr.number,
+                  title: prTitleConflicts
+                });
+              
+                core.warning(`Pull Request #${pr.number} marked as having merge conflicts`);
+              }
+
+  propagate_develop:
+    name: Propagate to develop
+    needs:
+      - get_releases
+      - propagate
+    if: always() && needs.get_releases.result == 'success' && (needs.propagate.result == 'success' || needs.propagate.result == 'skipped')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Create GitHub App Token
+        id: github-app
+        uses: actions/create-github-app-token@v3.0.0
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.PRIVATE_KEY }}
+
+      - name: Checkout source branch
+        uses: actions/checkout@v5
+        with:
+          token: ${{ steps.github-app.outputs.token }}
+          ref: develop
+          fetch-depth: 0
+
+      - name: Configure git
+        uses: ArchBoot/reusables-actions/.github/actions/setup-git@feature/JAGT-actions
+        with:
+          git_user_name: ${{ inputs.git_user_name }}
+          git_user_email: ${{ inputs.git_user_email }}
+
+      - name: Setup environment
+        uses: ArchBoot/reusables-actions/.github/actions/setup-environment@feature/JAGT-actions
+        with:
+          stack: ${{ needs.get_releases.outputs.stack }}
+          stack_version: ${{ needs.get_releases.outputs.stack_version }}
+
+      - name: Get version
+        id: develop_version
+        uses: ArchBoot/reusables-actions/.github/actions/get-version@feature/JAGT-actions
+        with:
+          stack: ${{ needs.get_releases.outputs.stack }}
+
+      - name: Create merge branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="${{ github.event.pull_request.base.ref || github.ref_name }}"
+          target="develop"
+          temp_branch="merge/from-${base//\//-}-to-${target//\//-}"
+          git fetch origin "$base"
+          git checkout -b "$temp_branch" "origin/$base"
+          echo "temp_branch=$temp_branch" >> "$GITHUB_ENV"
+
+      - name: Set merge version
+        uses: ArchBoot/reusables-actions/.github/actions/set-version@feature/JAGT-actions
+        with:
+          stack: ${{ needs.get_releases.outputs.stack }}
+          version: ${{ steps.develop_version.outputs.version }}
+          commit: 'true'
+          commit_message: '[GitHub Release] chore: update version to ${{ steps.develop_version.outputs.version }}'
+
+      - name: Push merge branch
+        shell: bash
+        run: |
+          git push origin "${{ env.temp_branch }}"
+
+      - name: Create Pull Request
+        uses: actions/github-script@v8.0.0
+        env:
+          BASE_BRANCH: ${{ github.event.pull_request.base.ref || github.ref_name }}
+          TARGET_BRANCH: develop
+          TEMP_BRANCH: ${{ env.temp_branch }}
+          BASE_VERSION: ${{ needs.get_releases.outputs.version }}
+          TARGET_VERSION: ${{ steps.develop_version.outputs.version }}
+        with:
+          github-token: ${{ steps.github-app.outputs.token }}
+          script: |
+            const base = process.env.BASE_BRANCH;
+            const target = process.env.TARGET_BRANCH;
+            const head = process.env.TEMP_BRANCH;
+
+            const baseVersion = process.env.BASE_VERSION;
+            const targetVersion = process.env.TARGET_VERSION;
+
+            const title = `Patch from ${base} to ${target}`;
+            const prTitle = `[Automerge] ${title}`;
+            const prTitleConflicts = `:warning: [Merge conflict] ${title} :warning:`;
+
+            const prBody = [
+              `This Pull Request was automatically created by the Propagation action to sync changes from \`${base}\` to \`${target}\`.`,
+              '',
+              '**Versions**',
+              `- Current version: \`${baseVersion}\``,
+              `- Target version: \`${targetVersion}\``
+            ].join('\n');
+
+            const { data: pr } = await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: prTitle,
+              head,
+              base: target,
+              body: prBody
+            });
+
+            try {
+              await github.rest.pulls.merge({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+                merge_method: 'merge'
+              });
+
+              core.info(`Successfully merged Pull Request #${pr.number}`);
+            
+              await github.rest.git.deleteRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: `heads/${head}`
+              });
+            
+              core.info(`Deleted temporary branch ${head}`);
+            } catch (err) {
+              core.warning(`Auto-merge failed: ${err.message}`);
+
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+                title: prTitleConflicts
+              });
+
+              core.warning(`Pull Request #${pr.number} marked as having merge conflicts`);
+            }

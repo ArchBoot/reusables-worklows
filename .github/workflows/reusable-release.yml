@@ -1,0 +1,234 @@
+name: Create Release
+
+on:
+  workflow_call:
+    inputs:
+      git_user_name:
+        description: 'The name of the Git user for the release commit'
+        type: string
+        required: false
+        default: 'github-actions[bot]'
+      git_user_email:
+        description: 'The email of the Git user for the release commit'
+        type: string
+        required: false
+        default: 'github-actions[bot]@users.noreply.github.com'
+
+permissions:
+  actions: write
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    name: Generate release
+    runs-on: ubuntu-latest
+    if:  github.event_name == 'workflow_dispatch' || 
+      (github.event.pull_request.merged == true && 
+      !(startsWith(github.event.pull_request.head.ref, 'merge') &&
+      github.event.pull_request.base.ref == 'develop' ))
+    steps:
+      - name: Branch Validation
+        uses: actions/github-script@v8.0.0
+        env:
+          REF_NAME: ${{ github.event.pull_request.base.ref || github.ref_name }}
+        with:
+          script: |
+            const branchName = process.env.REF_NAME;
+            
+            if (branchName === 'develop' || branchName.startsWith('release/')) {
+              core.notice(`✅ Branch ${branchName} is valid for releases`, { title: 'Branch Validation' });
+            } else {
+              throw new Error(`Current branch: ${branchName}. Releases can only be created from 'develop' or 'release/**' branches.`)
+            }
+
+      - name: Create GitHub App Token
+        uses: actions/create-github-app-token@v3.0.0
+        id: github-app
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.PRIVATE_KEY }}
+
+      - name: Checkout source branch
+        uses: actions/checkout@v5
+        with:
+          token: ${{ steps.github-app.outputs.token }}
+          ref: ${{ github.base_ref || github.ref_name }}
+          fetch-depth: 0
+
+      - name: Configure Git
+        uses: ArchBoot/reusables-actions/.github/actions/setup-git@feature/JAGT-actions
+        with:
+          git_user_name: ${{ inputs.git_user_name }}
+          git_user_email: ${{ inputs.git_user_email }}
+
+      - name: Detect tech stack
+        id: detect_stack
+        uses: ArchBoot/reusables-actions/.github/actions/detect-stack@feature/JAGT-actions
+
+      - name: Setup environment
+        uses: ArchBoot/reusables-actions/.github/actions/setup-environment@feature/JAGT-actions
+        with:
+          stack: ${{ steps.detect_stack.outputs.stack }}
+          stack_version: ${{ steps.detect_stack.outputs.stack_version }}
+
+      - name: Get current version
+        id: get_version
+        uses: ArchBoot/reusables-actions/.github/actions/get-version@feature/JAGT-actions
+        with:
+          stack: ${{ steps.detect_stack.outputs.stack }}
+
+      - name: Determine release source
+        id: release_source
+        shell: bash
+        env:
+          REF_NAME: ${{ github.event.pull_request.base.ref || github.ref_name }}
+        run: |
+          if [[ "$REF_NAME" == "develop" ]]; then
+            echo "source=develop" >> "$GITHUB_OUTPUT"
+          elif [[ "$REF_NAME" == release/* ]]; then
+            echo "source=release" >> "$GITHUB_OUTPUT"
+          else
+            echo "Unsupported source branch: $REF_NAME"
+            exit 1
+          fi
+
+      - name: Get bump patch version from release source
+        if: ${{ steps.release_source.outputs.source == 'release' }}
+        id: release_patch_version
+        uses: ArchBoot/reusables-actions/.github/actions/bump-version@feature/JAGT-actions
+        with:
+          bump_type: patch
+          current_version: ${{ steps.get_version.outputs.base_version }}
+          snapshot: 'false'
+
+      - name: Calculate release version
+        id: release_version
+        shell: bash
+        env:
+          RELEASE_SOURCE: ${{ steps.release_source.outputs.source }}
+          BASE_VERSION: ${{ steps.get_version.outputs.base_version }}
+          BUMP_PATCH_VERSION: ${{ steps.release_patch_version.outputs.next_version }}
+        run: |
+          if [[ "$RELEASE_SOURCE" == "develop" ]]; then
+            echo "version=$BASE_VERSION" >> "$GITHUB_OUTPUT"
+          elif [[ "$RELEASE_SOURCE" == "release" ]]; then
+            echo "version=$BUMP_PATCH_VERSION" >> "$GITHUB_OUTPUT"
+          else
+            echo "Unsupported release type: $RELEASE_SOURCE"
+            exit 1
+          fi
+
+      - name: Check if release tag already exists
+        uses: actions/github-script@v8.0.0
+        env:
+          RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
+          REF_NAME: ${{ github.event.pull_request.base.ref || github.ref_name }}
+        with:
+          github-token: ${{ steps.github-app.outputs.token }}
+          script: |
+            const version = process.env.RELEASE_VERSION;
+            
+            for (const candidate of [version, `v${version}`]) {
+              try {
+                await github.rest.git.getRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: `tags/${candidate}`
+                });
+            
+                const branch = process.env.REF_NAME;
+                const repoUrl = `${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}`;
+            
+                await core.summary
+                  .addHeading('❌ Release failed: tag already exists', 2)
+                  .addEOL()
+                  .addRaw(`The tag [${candidate}](${repoUrl}/releases/tag) already exists in this repository`)
+                  .addEOL()
+                  .addRaw(`To check wich versions already exist, go to the [Tag section](${repoUrl}/tags) of your repository.`)
+                  .write();
+                
+                core.setFailed(`Tag '${candidate} already exists in the repository. Bump the version before creating a new release.'`);
+                return;
+              } catch (err) {
+                if (err.status !== 404) throw err;
+              }
+            }
+
+      - name: Create Release
+        if: ${{ steps.release_source.outputs.source == 'develop' }}
+        id: release_branch
+        uses: ArchBoot/reusables-actions/.github/actions/create-branch@feature/JAGT-actions
+        with:
+          base_branch: 'develop'
+          new_branch: release/${{ steps.get_version.outputs.major }}.${{ steps.get_version.outputs.minor }}
+          push: 'false'
+
+      - name: Set Release Version
+        uses: ArchBoot/reusables-actions/.github/actions/set-version@feature/JAGT-actions
+        with:
+          stack: ${{ steps.detect_stack.outputs.stack }}
+          version: ${{ steps.release_version.outputs.version }}
+          commit: 'true'
+          commit_message: '[GitHub Release] chore: update version to ${{ steps.release_version.outputs.version }}'
+
+      - name: Push Release Branch
+        shell: bash
+        env:
+          REF_NAME: ${{ github.event.pull_request.base.ref || github.ref_name }}
+        run: |
+          if [[ "$REF_NAME" == "develop" ]]; then
+            RELEASE_BRANCH="release/${{ steps.get_version.outputs.major }}.${{ steps.get_version.outputs.minor }}"
+            git push origin "$RELEASE_BRANCH"
+          else
+            git push origin "$REF_NAME"
+          fi
+
+      - name: Generate Git Tag
+        uses: ArchBoot/reusables-actions/.github/actions/create-git-tag@feature/JAGT-actions
+        with:
+          tag: v${{ steps.release_version.outputs.version }}
+          message: 'Release ${{ steps.get_version.outputs.base_version }}'
+
+      - name: Bump develop version
+        if: ${{ steps.release_source.outputs.source == 'develop' }}
+        id: bump_version
+        uses: ArchBoot/reusables-actions/.github/actions/bump-version@feature/JAGT-actions
+        with:
+          current_version: ${{ steps.get_version.outputs.base_version }}
+          bump_type: minor
+          snapshot: 'true'
+
+      - name: Checkout to develop
+        if: ${{ steps.release_source.outputs.source == 'develop' }}
+        shell: bash
+        run:
+          git checkout develop
+
+      - name: Set bump version to develop
+        if: ${{ steps.release_source.outputs.source == 'develop' }}
+        uses: ArchBoot/reusables-actions/.github/actions/set-version@feature/JAGT-actions
+        with:
+          stack: ${{ steps.detect_stack.outputs.stack }}
+          version: ${{ steps.bump_version.outputs.next_version }}
+          commit: 'true'
+          commit_message: '[GitHub Release] chore: update version to ${{ steps.bump_version.outputs.next_version }}'
+
+      - name: Push to develop
+        if: ${{ steps.release_source.outputs.source == 'develop' }}
+        shell: bash
+        run: |
+          git push origin develop
+
+      - name: Trigger release
+        uses: actions/github-script@v8.0.0
+        env:
+          RELEASE_VERSION: v${{ steps.release_version.outputs.version }}
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'ci-app.yml',
+              ref: 'refs/tags/' + process.env.RELEASE_VERSION
+            });
