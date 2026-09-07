@@ -2,15 +2,6 @@ name: CD
 
 on:
   workflow_call:
-    inputs:
-      git_user_name:
-        type: string
-        required: false
-        default: 'github-actions[bot]'
-      git_user_email:
-        type: string
-        required: false
-        default: 'github-actions[bot]@users.noreply.github.com'
 
 permissions:
   contents: read
