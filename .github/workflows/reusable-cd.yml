@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   detect:
-    if: github.ref == 'refs/heads/main
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     outputs:
       stack: ${{ steps.detect_stack.outputs.stack }}
@@ -38,7 +38,7 @@ jobs:
 
   deploy:
     needs: detect
-    if: github.ref == 'refs/heads/main
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
