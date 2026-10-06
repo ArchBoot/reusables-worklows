@@ -32,11 +32,16 @@ jobs:
         with:
           stack: ${{ steps.detect_stack.outputs.stack }}
 
+      - name: Create Maven settings.xml
+        run: |
+          mkdir -p ~/.m2
+          echo "${{ secrets.MAVEN_SETTINGS_XML }}" > ~/.m2/settings.xml
+
       - name: Publish to Maven Central
         uses: ArchBoot/reusables-actions/.github/actions/publish-maven-central@main
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
           central_username: ${{ secrets.CENTRAL_USERNAME }}
-          cental_password: ${{ secrets.CENTRAL_PASSWORD }}
+          central_password: ${{ secrets.CENTRAL_PASSWORD }}
           version: ${{ steps.get_version.outputs.version }}
